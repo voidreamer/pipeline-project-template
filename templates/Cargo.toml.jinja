@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+members = [
+    "rust/core",
+    "rust/cli",
+{% if include_rust_pyo3 %}
+    "rust/pyo3",
+{% endif %}
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["{{ author_name }} <{{ author_email }}>"]
+license = "MIT"
+repository = "https://github.com/{{ github_username }}/{{ project_name }}"
+
+[workspace.dependencies]
+# Common dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Async
+tokio = { version = "1.35", features = ["full"] }
+
+{% if include_rust_pyo3 %}
+# Python bindings
+pyo3 = { version = "0.20", features = ["extension-module"] }
+{% endif %}
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -1,0 +1,115 @@
+name: Maya Plugin Build
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'cpp/maya/**'
+      - '.github/workflows/maya-plugin.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cpp/maya/**'
+  workflow_dispatch:
+    inputs:
+      maya_version:
+        description: 'Maya version to build (or "all")'
+        required: false
+        default: 'all'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        maya: ['2022', '2023', '2024', '2025']
+        os: [ubuntu-latest, windows-latest]
+        include:
+          # Maya DevKit download URLs (update as needed)
+          - maya: '2022'
+            maya_devkit_url_linux: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2022/Autodesk_Maya_2022_5_Update_DEVKIT_Linux.tgz'
+            maya_devkit_url_win: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2022/Autodesk_Maya_2022_5_Update_DEVKIT_Windows.zip'
+          - maya: '2023'
+            maya_devkit_url_linux: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2023/Autodesk_Maya_2023_3_Update_DEVKIT_Linux.tgz'
+            maya_devkit_url_win: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2023/Autodesk_Maya_2023_3_Update_DEVKIT_Windows.zip'
+          - maya: '2024'
+            maya_devkit_url_linux: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2024/Autodesk_Maya_2024_2_Update_DEVKIT_Linux.tgz'
+            maya_devkit_url_win: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2024/Autodesk_Maya_2024_2_Update_DEVKIT_Windows.zip'
+          - maya: '2025'
+            maya_devkit_url_linux: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2025/Autodesk_Maya_2025_1_Update_DEVKIT_Linux.tgz'
+            maya_devkit_url_win: 'https://autodesk-adn-transfer.s3.us-west-2.amazonaws.com/ADN+Extranet/M%26E/Maya/devkit+2025/Autodesk_Maya_2025_1_Update_DEVKIT_Windows.zip'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Maya DevKit
+        uses: actions/cache@v4
+        id: cache-devkit
+        with:
+          path: maya-devkit
+          key: maya-devkit-${{ matrix.maya }}-${{ matrix.os }}
+
+      - name: Download Maya DevKit (Linux)
+        if: runner.os == 'Linux' && steps.cache-devkit.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p maya-devkit
+          curl -L "${{ matrix.maya_devkit_url_linux }}" -o devkit.tgz
+          tar -xzf devkit.tgz -C maya-devkit --strip-components=1
+
+      - name: Download Maya DevKit (Windows)
+        if: runner.os == 'Windows' && steps.cache-devkit.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path maya-devkit
+          Invoke-WebRequest -Uri "${{ matrix.maya_devkit_url_win }}" -OutFile devkit.zip
+          Expand-Archive -Path devkit.zip -DestinationPath maya-devkit
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build -S cpp/maya \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMAYA_VERSION=${{ matrix.maya }} \
+            -DMAYA_DEVKIT_ROOT=${{ github.workspace }}/maya-devkit
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -B build -S cpp/maya `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DMAYA_VERSION=${{ matrix.maya }} `
+            -DMAYA_DEVKIT_ROOT="${{ github.workspace }}/maya-devkit"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-${{ matrix.maya }}-${{ runner.os }}
+          path: |
+            build/**/*.so
+            build/**/*.mll
+            build/**/*.dll
+          if-no-files-found: warn
+
+  # Create release with all builds
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: artifacts/**/*

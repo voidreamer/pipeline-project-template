@@ -1,0 +1,73 @@
+# {{ project_name }}
+
+{{ project_description }}
+
+## Installation
+
+### From PyPI (when published)
+
+```bash
+pip install {{ project_name }}
+```
+
+### From source
+
+```bash
+# Clone
+git clone https://github.com/{{ github_username }}/{{ project_name }}.git
+cd {{ project_name }}
+
+# Install with uv (recommended)
+uv sync --dev
+
+# Or with pip
+pip install -e ".[dev]"
+```
+
+{% if include_rust %}
+### Rust CLI
+
+```bash
+cargo install --path rust/cli
+```
+{% endif %}
+
+## Usage
+
+### Python
+
+```python
+from {{ project_name | replace('-', '_') }} import ...
+```
+
+### CLI
+
+```bash
+{{ project_name }} --help
+```
+
+## Development
+
+```bash
+# Run tests
+uv run pytest
+
+{% if include_rust %}
+# Rust tests
+cargo test
+{% endif %}
+
+# Lint
+uv run ruff check .
+uv run mypy python/
+
+{% if include_rust %}
+# Rust lint
+cargo clippy
+cargo fmt --check
+{% endif %}
+```
+
+## License
+
+MIT © {{ author_name }}

@@ -1,0 +1,81 @@
+_min_copier_version: "9.0.0"
+
+project_name:
+  type: str
+  help: Project name (lowercase, hyphens ok)
+  validator: "{% if not project_name | regex_search('^[a-z][a-z0-9-]*$') %}Must be lowercase, start with letter{% endif %}"
+
+project_description:
+  type: str
+  help: Short description of the project
+  default: "A VFX pipeline tool"
+
+author_name:
+  type: str
+  help: Author name
+  default: "Alejandro Cabrera"
+
+author_email:
+  type: str
+  help: Author email
+  default: "voidreamer@gmail.com"
+
+github_username:
+  type: str
+  help: GitHub username
+  default: "voidreamer"
+
+include_python:
+  type: bool
+  help: Include Python package?
+  default: true
+
+include_rust:
+  type: bool
+  help: Include Rust crate?
+  default: true
+
+include_rust_pyo3:
+  type: bool
+  help: Include PyO3 Python bindings for Rust?
+  default: true
+  when: "{{ include_rust }}"
+
+include_cpp_maya:
+  type: bool
+  help: Include Maya C++ plugin?
+  default: false
+
+include_cpp_houdini:
+  type: bool
+  help: Include Houdini C++ plugin?
+  default: false
+
+include_terraform:
+  type: bool
+  help: Include Terraform infrastructure?
+  default: true
+
+python_min_version:
+  type: str
+  help: Minimum Python version
+  default: "3.10"
+  choices:
+    - "3.9"
+    - "3.10"
+    - "3.11"
+    - "3.12"
+
+maya_versions:
+  type: str
+  help: Maya versions to support (comma-separated)
+  default: "2023,2024,2025"
+  when: "{{ include_cpp_maya }}"
+
+_subdirectory: templates
+_skip_if_exists:
+  - "*.lock"
+  - ".env*"
+
+_tasks:
+  - "{% if include_rust %}cd {{ _copier_conf.dst_path }} && cargo init rust/core --lib{% endif %}"
